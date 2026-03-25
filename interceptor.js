@@ -1,0 +1,292 @@
+/**
+ * Request Wizard — Interceptor (MAIN world)
+ * Overrides fetch() and XMLHttpRequest to apply body/header modifications.
+ *
+ * Debug log points (search for [RW:xx] to set breakpoints):
+ *   [RW:01] Rules received from background
+ *   [RW:02] fetch() intercepted — matching started
+ *   [RW:03] Rule matched for fetch
+ *   [RW:04] Request headers modified (fetch)
+ *   [RW:05] Request body modified (fetch)
+ *   [RW:06] fetch() sent with modifications
+ *   [RW:07] Response headers modified (fetch)
+ *   [RW:08] Response body modified (fetch)
+ *   [RW:09] fetch() response returned (modified)
+ *   [RW:10] XHR.open() intercepted
+ *   [RW:11] XHR.send() intercepted — matching started
+ *   [RW:12] Rule matched for XHR
+ *   [RW:13] XHR request headers modified
+ *   [RW:14] XHR request body modified
+ *   [RW:15] XHR response body modified
+ *   [RW:16] No rules matched — passthrough
+ *   [RW:17] Match error (regex/function)
+ *   [RW:18] Body modification error
+ */
+(function () {
+  'use strict';
+
+  if (window.__RW_INTERCEPTOR_INSTALLED__) return;
+  window.__RW_INTERCEPTOR_INSTALLED__ = true;
+
+  let activeRules = [];
+  let globalEnabled = false;
+  let debugLog = false;
+
+  // ─── Debug logger ──────────────────────────────────────
+  // Each call includes a code like [RW:03] so you can Ctrl+F in DevTools Sources
+  // and set a breakpoint on the exact log line.
+  function log(code, msg, data) {
+    if (!debugLog) return;
+    const tag = '%c[Request Wizard]%c ' + code + ' ' + msg;
+    if (data !== undefined) {
+      console.log(tag, 'color:#6C5CE7;font-weight:bold', 'color:inherit', data);
+    } else {
+      console.log(tag, 'color:#6C5CE7;font-weight:bold', 'color:inherit');
+    }
+  }
+
+  // ─── Receive rules ─────────────────────────────────────
+  window.addEventListener('__RW_RULES__', (e) => {
+    try {
+      const data = JSON.parse(e.detail);
+      globalEnabled = data.globalEnabled;
+      debugLog = !!data.debugLog;
+      activeRules = data.rules || [];
+      log('[RW:01]', `Rules received: ${activeRules.length} active, global=${globalEnabled}, debug=${debugLog}`); // [RW:01]
+    } catch (err) { /* ignore */ }
+  });
+
+  // ─── Matching ──────────────────────────────────────────
+  function testMatch(type, pattern, value) {
+    if (!pattern || pattern === '.*' || pattern === '') return true;
+    try {
+      if (type === 'regex') return new RegExp(pattern).test(value);
+      if (type === 'function') return !!(new Function('value', pattern))(value);
+    } catch (e) {
+      log('[RW:17]', `Match error: type=${type}, pattern=${pattern}`, e); // [RW:17]
+    }
+    return false;
+  }
+
+  function getMatchingRules(url, method) {
+    if (!globalEnabled) return [];
+    let hostname = '';
+    try { hostname = new URL(url).hostname; } catch (e) { return []; }
+
+    return activeRules.filter(rule => {
+      const m = rule.matching;
+      if (m.methods && m.methods.length > 0 && !m.methods.includes(method.toUpperCase())) return false;
+      if (!testMatch(m.domainMatchType, m.domainPattern, hostname)) return false;
+      if (!testMatch(m.urlMatchType, m.urlPattern, url)) return false;
+      return true;
+    });
+  }
+
+  // ─── Modification helpers ──────────────────────────────
+  function applyHeaderMods(headers, mods) {
+    const h = new Headers(headers || {});
+    for (const mod of mods) {
+      if (!mod.name) continue;
+      switch (mod.action) {
+        case 'set':    h.set(mod.name, mod.value || ''); break;
+        case 'append': h.append(mod.name, mod.value || ''); break;
+        case 'remove': h.delete(mod.name); break;
+      }
+    }
+    return h;
+  }
+
+  function applyBodyMod(mod, originalBody, info) {
+    if (!mod || mod.type === 'none') return originalBody;
+    try {
+      if (mod.type === 'static') return mod.value;
+      if (mod.type === 'function') return (new Function('body', 'info', mod.value))(originalBody, info);
+    } catch (e) {
+      log('[RW:18]', `Body modification error: type=${mod.type}`, e); // [RW:18]
+    }
+    return originalBody;
+  }
+
+  function headersToPlain(headers) {
+    const obj = {};
+    if (headers && typeof headers.forEach === 'function') headers.forEach((v, k) => { obj[k] = v; });
+    else if (headers && typeof headers === 'object') Object.assign(obj, headers);
+    return obj;
+  }
+
+  // ═══════════════════════════════════════════════════════
+  //  FETCH OVERRIDE
+  // ═══════════════════════════════════════════════════════
+  const originalFetch = window.fetch;
+
+  window.fetch = async function (...args) {
+    let [input, init] = args;
+    init = init || {};
+    const rawUrl = typeof input === 'string' ? input
+      : (input instanceof URL ? input.href
+        : (input instanceof Request ? input.url : String(input)));
+    const url = new URL(rawUrl, window.location.href).href;
+    const method = (init.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
+
+    log('[RW:02]', `fetch() intercepted: ${method} ${url}`); // [RW:02]
+
+    const matchedRules = getMatchingRules(url, method);
+
+    if (matchedRules.length === 0) {
+      log('[RW:16]', `No rules matched for fetch ${method} ${url}`); // [RW:16]
+      return originalFetch.apply(this, args);
+    }
+
+    matchedRules.forEach(r => log('[RW:03]', `Rule matched: "${r.name}" (${r.id})`, r)); // [RW:03]
+
+    let reqHeaders = new Headers(init.headers || (input instanceof Request ? input.headers : {}));
+    let reqBody = init.body !== undefined ? init.body : (input instanceof Request ? await input.text().catch(() => null) : null);
+    const requestInfo = { url, method, headers: headersToPlain(reqHeaders) };
+
+    // Apply request modifications
+    for (const rule of matchedRules) {
+      const mods = rule.modifications;
+      if (mods.requestHeaders && mods.requestHeaders.length > 0) {
+        reqHeaders = applyHeaderMods(reqHeaders, mods.requestHeaders);
+        log('[RW:04]', `Request headers modified by "${rule.name}"`, { mods: mods.requestHeaders, result: headersToPlain(reqHeaders) }); // [RW:04]
+      }
+      if (mods.requestBody && mods.requestBody.type !== 'none') {
+        const bodyStr = typeof reqBody === 'string' ? reqBody : (reqBody ? await new Response(reqBody).text().catch(() => '') : '');
+        const before = bodyStr;
+        reqBody = applyBodyMod(mods.requestBody, bodyStr, requestInfo);
+        log('[RW:05]', `Request body modified by "${rule.name}"`, { before: before?.substring(0, 200), after: typeof reqBody === 'string' ? reqBody.substring(0, 200) : reqBody }); // [RW:05]
+      }
+    }
+
+    const modInit = { ...init, headers: reqHeaders, method };
+    if (reqBody !== null && reqBody !== undefined && method !== 'GET' && method !== 'HEAD') modInit.body = reqBody;
+
+    log('[RW:06]', `fetch() sending modified request: ${method} ${url}`, { headers: headersToPlain(reqHeaders) }); // [RW:06]
+
+    let response;
+    if (input instanceof Request) response = await originalFetch.call(this, new Request(url, modInit));
+    else response = await originalFetch.call(this, url, modInit);
+
+    const hasResponseMod = matchedRules.some(r =>
+      (r.modifications.responseHeaders?.length > 0) || (r.modifications.responseBody?.type !== 'none')
+    );
+    if (!hasResponseMod) return response;
+
+    let respHeaders = new Headers(response.headers);
+    let respBody = await response.text();
+    const responseInfo = { url, method, status: response.status, headers: headersToPlain(respHeaders) };
+
+    for (const rule of matchedRules) {
+      const mods = rule.modifications;
+      if (mods.responseHeaders && mods.responseHeaders.length > 0) {
+        respHeaders = applyHeaderMods(respHeaders, mods.responseHeaders);
+        log('[RW:07]', `Response headers modified by "${rule.name}"`, { mods: mods.responseHeaders, result: headersToPlain(respHeaders) }); // [RW:07]
+      }
+      if (mods.responseBody && mods.responseBody.type !== 'none') {
+        const before = respBody?.substring(0, 200);
+        respBody = applyBodyMod(mods.responseBody, respBody, responseInfo);
+        log('[RW:08]', `Response body modified by "${rule.name}"`, { before, after: typeof respBody === 'string' ? respBody.substring(0, 200) : respBody }); // [RW:08]
+      }
+    }
+
+    log('[RW:09]', `fetch() returning modified response: status=${response.status}`, { headers: headersToPlain(respHeaders), bodyPreview: typeof respBody === 'string' ? respBody.substring(0, 100) : null }); // [RW:09]
+
+    return new Response(respBody, {
+      status: response.status, statusText: response.statusText, headers: respHeaders
+    });
+  };
+
+  // ═══════════════════════════════════════════════════════
+  //  XHR OVERRIDE
+  // ═══════════════════════════════════════════════════════
+  const XHRProto = window.XMLHttpRequest.prototype;
+  const origOpen = XHRProto.open;
+  const origSend = XHRProto.send;
+  const origSetRequestHeader = XHRProto.setRequestHeader;
+
+  XHRProto.open = function (method, url) {
+    this.__rw_method = (method || 'GET').toUpperCase();
+    this.__rw_url = new URL(url, window.location.href).href;
+    this.__rw_headers = {};
+    log('[RW:10]', `XHR.open(): ${this.__rw_method} ${url}`); // [RW:10]
+    return origOpen.apply(this, arguments);
+  };
+
+  XHRProto.setRequestHeader = function (name, value) {
+    this.__rw_headers = this.__rw_headers || {};
+    this.__rw_headers[name] = value;
+    return origSetRequestHeader.apply(this, arguments);
+  };
+
+  XHRProto.send = function (body) {
+    const url = this.__rw_url;
+    const method = this.__rw_method || 'GET';
+
+    log('[RW:11]', `XHR.send(): ${method} ${url}`); // [RW:11]
+
+    const matchedRules = getMatchingRules(url, method);
+    if (matchedRules.length === 0) {
+      log('[RW:16]', `No rules matched for XHR ${method} ${url}`); // [RW:16]
+      return origSend.apply(this, arguments);
+    }
+
+    matchedRules.forEach(r => log('[RW:12]', `Rule matched for XHR: "${r.name}" (${r.id})`)); // [RW:12]
+
+    const requestInfo = { url, method, headers: { ...(this.__rw_headers || {}) } };
+
+    for (const rule of matchedRules) {
+      const mods = rule.modifications;
+      if (mods.requestHeaders?.length > 0) {
+        for (const mod of mods.requestHeaders) {
+          if (!mod.name) continue;
+          if (mod.action === 'set' || mod.action === 'append') origSetRequestHeader.call(this, mod.name, mod.value || '');
+        }
+        log('[RW:13]', `XHR request headers modified by "${rule.name}"`, mods.requestHeaders); // [RW:13]
+      }
+    }
+
+    let modBody = body;
+    for (const rule of matchedRules) {
+      const mods = rule.modifications;
+      if (mods.requestBody?.type !== 'none') {
+        const bodyStr = typeof modBody === 'string' ? modBody : (modBody ? String(modBody) : '');
+        modBody = applyBodyMod(mods.requestBody, bodyStr, requestInfo);
+        log('[RW:14]', `XHR request body modified by "${rule.name}"`, { before: bodyStr?.substring(0, 200), after: typeof modBody === 'string' ? modBody.substring(0, 200) : modBody }); // [RW:14]
+      }
+    }
+
+    const hasResponseMod = matchedRules.some(r =>
+      (r.modifications.responseHeaders?.length > 0) || (r.modifications.responseBody?.type !== 'none')
+    );
+
+    if (hasResponseMod) {
+      const self = this;
+      this.addEventListener('readystatechange', function () {
+        if (self.readyState === 4) {
+          let respBody = self.responseText;
+          const responseInfo = { url, method, status: self.status, headers: {} };
+          try {
+            self.getAllResponseHeaders().split('\r\n').forEach(line => {
+              const idx = line.indexOf(':');
+              if (idx > 0) responseInfo.headers[line.slice(0, idx).trim()] = line.slice(idx + 1).trim();
+            });
+          } catch (e) {}
+
+          for (const rule of matchedRules) {
+            if (rule.modifications.responseBody?.type !== 'none') {
+              const before = respBody?.substring(0, 200);
+              respBody = applyBodyMod(rule.modifications.responseBody, respBody, responseInfo);
+              log('[RW:15]', `XHR response body modified by "${rule.name}"`, { status: self.status, before, after: typeof respBody === 'string' ? respBody.substring(0, 200) : respBody }); // [RW:15]
+            }
+          }
+
+          Object.defineProperty(self, 'responseText', { get: () => respBody, configurable: true });
+          Object.defineProperty(self, 'response', { get: () => respBody, configurable: true });
+        }
+      });
+    }
+
+    return origSend.call(this, modBody);
+  };
+
+})();

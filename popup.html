@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#1a1a2e;--surface:#16213e;--surface2:#1c2a4a;--border:#2a3a5c;
+  --text:#e8e8f0;--muted:#8892b0;--accent:#6C5CE7;--accent2:#a29bfe;
+  --success:#00cec9;--danger:#ff6b6b;--warn:#feca57;
+  --radius:8px;--font:'Segoe UI',system-ui,-apple-system,sans-serif;
+}
+html,body{width:380px;min-height:200px;font-family:var(--font);background:var(--bg);color:var(--text)}
+.header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 18px 12px;border-bottom:1px solid var(--border);
+  background:linear-gradient(135deg,var(--surface),var(--surface2));
+}
+.logo{display:flex;align-items:center;gap:10px}
+.logo svg{width:26px;height:26px}
+.logo h1{font-size:15px;font-weight:700;letter-spacing:-0.3px;background:linear-gradient(135deg,var(--accent2),var(--success));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.global-toggle{position:relative;width:44px;height:24px;cursor:pointer}
+.global-toggle input{opacity:0;width:0;height:0}
+.global-toggle .slider{
+  position:absolute;inset:0;background:var(--border);border-radius:12px;transition:.25s;
+}
+.global-toggle .slider::before{
+  content:'';position:absolute;left:3px;top:3px;width:18px;height:18px;
+  background:#fff;border-radius:50%;transition:.25s;
+}
+.global-toggle input:checked+.slider{background:var(--accent)}
+.global-toggle input:checked+.slider::before{transform:translateX(20px)}
+.body{padding:10px 14px;max-height:400px;overflow-y:auto}
+.group{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  margin-bottom:8px;overflow:hidden;transition:border-color .2s;
+}
+.group:hover{border-color:var(--accent)}
+.group-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 14px;cursor:default;
+}
+.group-info{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.group-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.group-badge{
+  font-size:10px;font-weight:600;background:var(--accent);color:#fff;
+  padding:2px 7px;border-radius:10px;flex-shrink:0;
+}
+.group-badge.off{background:var(--border);color:var(--muted)}
+.mini-toggle{position:relative;width:36px;height:20px;cursor:pointer;flex-shrink:0}
+.mini-toggle input{opacity:0;width:0;height:0}
+.mini-toggle .slider{
+  position:absolute;inset:0;background:var(--border);border-radius:10px;transition:.25s;
+}
+.mini-toggle .slider::before{
+  content:'';position:absolute;left:2px;top:2px;width:16px;height:16px;
+  background:#fff;border-radius:50%;transition:.25s;
+}
+.mini-toggle input:checked+.slider{background:var(--success)}
+.mini-toggle input:checked+.slider::before{transform:translateX(16px)}
+.empty{text-align:center;padding:30px 20px;color:var(--muted);font-size:13px}
+.empty svg{width:40px;height:40px;opacity:.3;margin-bottom:10px}
+.footer{
+  display:flex;gap:8px;padding:10px 14px 14px;border-top:1px solid var(--border);
+}
+.btn{
+  flex:1;display:flex;align-items:center;justify-content:center;gap:6px;
+  padding:9px 12px;border:none;border-radius:var(--radius);cursor:pointer;
+  font-size:12px;font-weight:600;font-family:var(--font);transition:.2s;
+}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent2)}
+.btn-secondary{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+.btn-secondary:hover{color:var(--text);border-color:var(--muted)}
+.btn svg{width:14px;height:14px}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo">
+    <svg viewBox="0 0 32 32" fill="none"><rect x="2" y="2" width="28" height="28" rx="8" fill="#6C5CE7"/><path d="M10 12h12M10 16h8M10 20h10" stroke="#fff" stroke-width="2" stroke-linecap="round"/><circle cx="24" cy="20" r="3" fill="#00cec9"/></svg>
+    <h1>Request Wizard</h1>
+  </div>
+  <label class="global-toggle" title="Global On/Off">
+    <input type="checkbox" id="globalToggle">
+    <span class="slider"></span>
+  </label>
+</div>
+
+<div class="body" id="groupList"></div>
+
+<div class="footer">
+  <button class="btn btn-secondary" id="btnSettings" title="Open Settings">
+    <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>
+    Settings
+  </button>
+  <button class="btn btn-primary" id="btnOptions" title="Open Full Editor">
+    <svg viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
+    Edit Rules
+  </button>
+</div>
+
+<script src="popup.js"></script>
+</body>
+</html>
