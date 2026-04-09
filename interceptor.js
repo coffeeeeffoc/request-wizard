@@ -129,7 +129,7 @@
   function getMatchingRulesSync(url, method) {
     if (!globalEnabled) return [];
     let hostname = '';
-    try { hostname = new URL(url).hostname; } catch (e) { return []; }
+    try { hostname = location.hostname; } catch (e) { return []; }
 
     return activeRules.filter(rule => {
       const m = rule.matching;
@@ -143,7 +143,7 @@
   async function getMatchingRulesAsync(url, method) {
     if (!globalEnabled) return [];
     let hostname = '';
-    try { hostname = new URL(url).hostname; } catch (e) { return []; }
+    try { hostname = location.hostname; } catch (e) { return []; }
 
     const results = [];
     for (const rule of activeRules) {
