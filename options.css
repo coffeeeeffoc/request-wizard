@@ -93,17 +93,17 @@ input:checked+.switch-track.sm .switch-thumb{transform:translateX(16px)}
 .rule-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;transition:border-color var(--transition)}
 .rule-card:hover{border-color:var(--border-hover)}
 .rule-card.expanded{border-color:var(--accent)}
-.rule-header{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;transition:background var(--transition)}
+.rule-header{display:grid;grid-template-columns:20px 1fr auto auto auto;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;transition:background var(--transition)}
 .rule-header:hover{background:var(--surface2)}
 .rule-chevron{width:20px;height:20px;color:var(--muted);transition:transform .25s;flex-shrink:0}
 .rule-card.expanded .rule-chevron{transform:rotate(90deg)}
-.rule-name-display{flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--text);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:4px 0}
-.rule-name-display:hover{color:var(--accent2)}
-.edit-hint-icon{width:12px;height:12px;color:var(--muted);vertical-align:middle;margin-left:4px;opacity:0;transition:opacity .2s}
-.rule-name-display:hover .edit-hint-icon{opacity:1}
-.rule-name-input{flex:1;background:transparent;border:1px solid var(--accent);border-radius:var(--radius-sm);padding:4px 8px;color:var(--text);font-size:13px;font-weight:600;font-family:var(--font);outline:none;min-width:0}
+.rule-name-display{display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:600;color:var(--text);cursor:pointer;padding:4px 8px;border-radius:4px;white-space:nowrap;transition:all var(--transition);width:fit-content}
+.rule-name-display:hover{color:var(--accent2);background:rgba(108,92,231,.08)}
+.edit-hint-icon{width:12px;height:12px;color:var(--muted);flex-shrink:0;opacity:.6;transition:opacity .2s}
+.rule-name-display:hover .edit-hint-icon{opacity:1;color:var(--accent2)}
+.rule-name-input{width:100%;background:transparent;border:1px solid var(--accent);border-radius:var(--radius-sm);padding:4px 8px;color:var(--text);font-size:13px;font-weight:600;font-family:var(--font);outline:none;min-width:0}
 .rule-badges{display:flex;gap:4px;flex-shrink:0}
-.rule-badge{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:2px 6px;border-radius:4px;background:var(--surface3);color:var(--muted)}
+.rule-badge{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:2px 6px;border-radius:4px;background:var(--surface3);color:var(--muted);cursor:default;transition:var(--transition)}
 .rule-badge.active{background:var(--accent-dim);color:var(--accent2)}
 .rule-toggle{flex-shrink:0}
 .rule-delete{width:28px;height:28px;border:none;border-radius:var(--radius-sm);background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:var(--transition);flex-shrink:0}

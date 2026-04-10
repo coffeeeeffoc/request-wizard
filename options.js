@@ -273,14 +273,14 @@
     c.className = 'rule-card'; c.dataset.id = rule.id;
     if (expandedRules.has(rule.id)) c.classList.add('expanded');
     const m = rule.modifications;
-    const b = (f, l) => `<span class="rule-badge ${f ? 'active' : ''}">${l}</span>`;
+    const b = (f, l, t) => `<span class="rule-badge ${f ? 'active' : ''}" title="${t}">${l}</span>`;
 
     c.innerHTML = `
       <div class="rule-header">
         <svg class="rule-chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
         <span class="rule-name-display" data-r="nd" title="Click to edit">${esc(rule.name)} ${PENCIL}</span>
         <input type="text" class="rule-name-input" value="${esc(rule.name)}" spellcheck="false" data-r="ni" style="display:none">
-        <div class="rule-badges">${b(m.requestHeaders.length, 'ReqH')}${b(m.responseHeaders.length, 'ResH')}${b(m.requestBody.type !== 'none', 'ReqB')}${b(m.responseBody.type !== 'none', 'ResB')}</div>
+        <div class="rule-badges">${b(m.requestHeaders.length, 'ReqH', 'Request Headers: ' + m.requestHeaders.length)}${b(m.responseHeaders.length, 'ResH', 'Response Headers: ' + m.responseHeaders.length)}${b(m.requestBody.type !== 'none', 'ReqB', 'Request Body: ' + m.requestBody.type)}${b(m.responseBody.type !== 'none', 'ResB', 'Response Body: ' + m.responseBody.type)}</div>
         <label class="toggle-label rule-toggle" onclick="event.stopPropagation()">
           <input type="checkbox" ${rule.enabled ? 'checked' : ''} data-r="en">
           <span class="switch-track sm"><span class="switch-thumb"></span></span>
